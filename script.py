@@ -1,9 +1,9 @@
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import geopandas as gpd
 import pandas as pd
+import json
 import numpy
-import datetime
 import os
 
 def clean_string_series(s):
@@ -12,7 +12,8 @@ def clean_string_series(s):
 
 def main():
     # Carga de mapa de comunas
-    filepath = "Comunas/comunas.shx"
+    filepath = "comunas.json"
+    geojson = json.load(open(filepath, 'r'))
     comunas_map_df = gpd.read_file(filepath)
     comunas_map_df['Comuna'] = clean_string_series(comunas_map_df['Comuna'])
     # Carga de archivo de comunas
@@ -23,27 +24,21 @@ def main():
     # Combinamos ambos dataset
     full_map = comunas_map_df.merge(comunas_count_df, left_on=['Comuna'], right_on=['Comuna'], how='left')
     full_map['Cantidad'].fillna(0, inplace=True)
-    regiones = full_map['Region'].unique()
-    plot_path = 'plot'
-    if not os.path.exists(plot_path):
-        os.makedirs(plot_path)
-    today = datetime.date.today()
-    today_path = os.path.join(plot_path, str(today))
-    if not os.path.exists(today_path):
-        os.makedirs(today_path)
-    for region in regiones:
-        print(f"Plotting {region}")
-        region_map = full_map[full_map['Region']==region]
-        fig_region, ax_region = plt.subplots()
-        region_map.plot(column='Cantidad', cmap='Blues', linewidth=1, ax=ax_region, edgecolor='0.9', legend = True)
-        ax_region.axis('off')
-        fig_region.savefig(os.path.join(today_path, f"{region}_{today}.png"))
-    plt.close('all')
-    fig_map, ax_map = plt.subplots()
-    full_map.plot(column='Cantidad', cmap='Blues', linewidth=1, ax=ax_map, edgecolor='0.9', legend = True)
-    ax_map.axis('off')
-    fig_map.savefig(os.path.join(today_path, f"fullmapa_{datetime.date.today()}.png"))
-    plt.show(block=True)
+    map_fig = go.Figure(go.Choroplethmapbox(
+        geojson=geojson,
+        locations=full_map.objectid,
+        featureidkey="properties.objectid",
+        z=full_map.Cantidad,
+        colorscale="Viridis",
+        text=full_map['Comuna'],
+        hovertemplate='<b>%{text}</b><br>Cantidad: %{z}',
+        marker_opacity=0.5, marker_line_width=0),
+    )
+    map_fig.update_layout(mapbox_style="carto-positron",
+                  mapbox_zoom=3, mapbox_center = {"lat": -33.6048, "lon": -70.6287})
+    map_fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+    map_fig.show()
+    return
 
 if __name__=='__main__':
     main()
